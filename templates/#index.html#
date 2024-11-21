@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<<!DOCTYPE html>
 <html>
 <head>
     <title>MoviGuessr</title>
@@ -19,15 +19,23 @@
     </style>
 </head>
 <body>
-    <h1>MoviGuessr</h1>
-    
+  <h1>MoviGuessr</h1>
+  
+    <form method="POST" enctype="multipart/form-data">
+        <!-- File Input -->
+        <input type="file" id="file-input" name="file">
+        
+        <!-- Drag-and-Drop Area -->
+        <div id="drop-area">
+            <p>Drag & drop a file here or click to upload</p>
+            <input type="file" id="file-upload" name="file-upload" style="display: none;">
+        </div>
+    </form>
+
     <iframe
         src="{{ gradio_url }}"
         style="width: 100%; height: 500px; border: none;">
     </iframe>
-    
-    <!-- Optional: Display image if saved successfully -->
-    <!-- <img src="{{ url_for('static', filename='uploads/your_image_name') }}" alt="Uploaded Image"> -->
 </body>
 </html>
 
