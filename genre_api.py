@@ -2,11 +2,11 @@ import torch
 import torchvision.transforms as transforms
 from flask import Flask, jsonify, request
 from PIL import Image
-from torchvision import datasets
 import torch.nn as nn
 import gdown
 from torchvision.models import mobilenet_v3_small, MobileNet_V3_Small_Weights
 import os
+from annoy import AnnoyIndex
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -43,10 +43,27 @@ transform = transforms.Compose([
     transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 ])
 
+
 # Initialisation de l'application Flask
 app = Flask(__name__)
 
-@app.route('/predict', methods=['POST'])
+#Téléchargement depuis le drive de l'index Annoy
+INDEX_PATH = "rec_imdb.ann"
+
+# id du fihier à télécharger sur le drive
+GOOGLE_DRIVE_FILE_ID2 = "1br1oGCqw9oTVqskHn8ZB2MOIjfHA-jfK"
+
+if not os.path.exists(INDEX_PATH):
+    print("Annoy index not found. Downloading from Google Drive...")
+    gdown.download(f"https://drive.google.com/uc?id={GOOGLE_DRIVE_FILE_ID2}", INDEX_PATH, quiet=False)
+
+# Charger l'index Annoy
+VECTOR_LENGTH = 576  #Longueur des vecteurs extraits du modèle
+annoy_index = AnnoyIndex(VECTOR_LENGTH, 'angular')
+annoy_index.load("rec_imdb.ann")  #téléchargement de l'index
+
+
+@app.route('/predict', methods=['POST']) #Route pour la PART1
 def predict():
     if 'file' not in request.files:
         return jsonify({"error": "No image file provided"}), 400
@@ -69,17 +86,20 @@ def predict():
 
     return jsonify({"predicted_genre": predicted_genre})
 
-@app.route('/')
-def home():
-    return '''
-    <!doctype html>
-    <title>Upload an Image</title>
-    <h1>Upload an Image for Genre Prediction</h1>
-    <form method="POST" action="/predict" enctype="multipart/form-data">
-      <input type="file" name="file">
-      <input type="submit" value="Upload">
-    </form>
-    '''
+@app.route('/reco', methods=['POST']) #Route pour la PART2
+def recommend():
+    vector = request.get_json()['vector']  # Récupérer le vecteur envoyé
+
+    closest_indices = annoy_index.get_nns_by_vector(vector, 5) # Recherche des 5 films les plus proches
+
+    # Retourner les chemins des films correspondants
+    similar_movies = [closest_indices[i] for i in range(5)]
+
+    return jsonify(similar_movies)
+
+@app.route('/') #Route pour vérifier que l'API fonctionne
+def home():   
+    return 'Hello world!'
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=5000, debug=True)
