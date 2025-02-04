@@ -1,0 +1,8 @@
+torch==2.0.1
+torchvision==0.15.2
+Pillow==9.5.0
+gradio==5.9.1
+requests 
+pandas == 2.1.4
+matplotlib == 3.7.2
+numpy == 1.25.0
