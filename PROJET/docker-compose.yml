@@ -1,0 +1,31 @@
+services:
+  genre_web_app: 
+    build:
+      context: .  
+      dockerfile: Web_dockerfile
+    ports:
+      - "7860:7860"  # genre_web_app sur le port 7860
+    environment:
+      API_URL: "http://genre_api:5000" 
+    depends_on:
+      - genre_api  # Assure que genre_api démarre avant genre_web_app
+
+  reco_web_app:
+    build:
+      context: . 
+      dockerfile: Web2_dockerfile  # Nom du Dockerfile dans le répertoire reco_web_app
+    ports:
+      - "8000:8000"  # reco_web_app sur le port 8000
+    environment:
+      API_URL: "http://genre_api:5000" 
+    depends_on:
+      - genre_api 
+
+      
+  genre_api:
+    build:
+      context: .
+      dockerfile: Api_dockerfile
+    ports:
+      - "5000:5000"  # genre_api sur le port 5000
+
