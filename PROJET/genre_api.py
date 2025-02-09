@@ -63,6 +63,55 @@ annoy_index = AnnoyIndex(VECTOR_LENGTH, 'angular')
 annoy_index.load("rec_imdb.ann")  #téléchargement de l'index
 
 
+#Téléchargement depuis le drive de le l'autoencoder
+AUTOENCODER_PATH = "autoencoder_film_poster.pth"
+
+# id du fihier à télécharger sur le drive
+GOOGLE_DRIVE_FILE_ID3 = "1zaG-PGkSUUxabgHjL0Ei8rKeDMyNN5ne"
+
+if not os.path.exists(AUTOENCODER_PATH):
+    print("Autoencoder not found. Downloading from Google Drive...")
+    gdown.download(f"https://drive.google.com/uc?id={GOOGLE_DRIVE_FILE_ID3}", AUTOENCODER_PATH, quiet=False)
+
+# Autoencoder Model
+class Autoencoder(nn.Module):
+    def __init__(self):
+        super(Autoencoder, self).__init__()
+        # Encoder
+        self.encoder = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1), # 224x224 -> 112x112
+            nn.ReLU(),
+            nn.Conv2d(64, 128, kernel_size=3, stride=2, padding=1), # 112x112 -> 56x56
+            nn.ReLU(),
+            nn.Conv2d(128, 256, kernel_size=3, stride=2, padding=1), # 56x56 -> 28x28
+            nn.ReLU(),
+            nn.Conv2d(256, 512, kernel_size=3, stride=2, padding=1), # 28x28 -> 14x14
+            nn.ReLU(),
+        )
+        # Decoder
+        self.decoder = nn.Sequential(
+            nn.ConvTranspose2d(512, 256, kernel_size=3, stride=2, padding=1, output_padding=1), # 14x14 -> 28x28
+            nn.ReLU(),
+            nn.ConvTranspose2d(256, 128, kernel_size=3, stride=2, padding=1, output_padding=1), # 28x28 -> 56x56
+            nn.ReLU(),
+            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=2, padding=1, output_padding=1), # 56x56 -> 112x112
+            nn.ReLU(),
+            nn.ConvTranspose2d(64, 3, kernel_size=3, stride=2, padding=1, output_padding=1), # 112x112 -> 224x224
+            nn.Sigmoid() # Normalize to [0,1]
+        )
+
+    def forward(self, x):
+        encoded = self.encoder(x)
+        decoded = self.decoder(encoded)
+        return decoded
+
+autoencoder = Autoencoder()
+autoencoder.load_state_dict(torch.load(AUTOENCODER_PATH, map_location=device))
+autoencoder = autoencoder.to(device)
+autoencoder.eval()
+
+
+
 @app.route('/predict', methods=['POST']) #Route pour la PART1
 def predict():
     if 'file' not in request.files:
@@ -96,6 +145,43 @@ def recommend():
     similar_movies = [closest_indices[i] for i in range(5)]
 
     return jsonify(similar_movies)
+
+@app.route('/anomaly', methods=['POST'])#Route pour la PART3
+def anomaly():
+
+    transform = transforms.Compose([
+        transforms.Resize((224, 224)),
+        transforms.ToTensor()
+    ])
+
+
+    if 'file' not in request.files:
+        return jsonify({"error": "No image file provided"}), 400
+
+    file = request.files['file']
+    if file.filename == '':
+        return jsonify({"error": "No image selected"}), 400
+
+    try:
+        img_pil = Image.open(file.stream)
+    except Exception as e:
+        return jsonify({"error": f"Unable to process image: {str(e)}"}), 400
+
+    tensor = transform(img_pil).to(device).unsqueeze(0)
+
+    with torch.no_grad():
+        reconstruction = autoencoder(tensor)
+    
+    error = torch.mean((tensor - reconstruction) ** 2, dim=[1, 2, 3])
+
+    threshold = 0.001
+
+    is_a_poster = error > threshold
+    
+    if is_a_poster :
+        return jsonify({"is_a_poster": "Movie Poster"})
+    else :
+        return jsonify({"is_a_poster": "Not a Movie Poster"})
 
 @app.route('/') #Route pour vérifier que l'API fonctionne
 def home():   
